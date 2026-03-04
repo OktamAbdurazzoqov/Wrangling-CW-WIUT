@@ -230,72 +230,72 @@ with visualizationTab:
     
     chartConfigColumn, chartOutputColumn = st.columns([1,1])
     
+    ##fixed chart config part, we need better design for our work
     with chartConfigColumn:
         containerVisualizationTab = st.container(border=True)
         with containerVisualizationTab:
             st.header("Chart Configuration")
 
-            histColumn, boxColumn = st.columns([2,2])
-
-            with histColumn:
-                st.button("Histogram")
+            st.space(size=20)
             
-            with boxColumn:
-                st.button("Box Plot")
+            st.header("Chart Type")
+            st.selectbox(
+                    "",
+                    [
+                        "Histogram",
+                        "Box Plot",
+                        "Scatter Plot",
+                        "Line Chart",
+                        "Grouped Bar Chart",
+                        "Correlation Heatmap",
+                    ],
+                )
             
-            scatColumn, linecColumn = st.columns([2,2])
-
-            with scatColumn:
-                st.button("Scatter Plot")
-            
-            with linecColumn:
-                st.button("Line Chart")
-
-            gbarColumn, cheatColumn = st.columns([2,2])
-
-            with gbarColumn:
-                st.button("Grouped Bar Chart")
-            
-            with cheatColumn:
-                st.button("Correlation Heatmap")
-            
-            st.space(size=10)
+            st.space(size=20)
 
             st.header("Axes")
+            st.selectbox(
+                    "",
+                    [
+                        "option xaxis 1",
+                        "option xaxis 2",
+                        "option xaxis 3",
+                    ],
+                )
+            
+            st.space(size=20)
 
-            st.write("X-axis")
-            xaxis = st.popover("Choose")
-            xaxisopt1 = xaxis.checkbox("option xaxis 1")
-            xaxisopt2 = xaxis.checkbox("option xaxis 2")
-            xaxisopt3 = xaxis.checkbox("option xaxis 3")
+            st.header("Color/Group (Optional)")
+            st.selectbox(
+                    "",
+                    ["None", "option1", "option 2", "option 3"],
+                )
+            
+            st.space(size=20)
 
-            st.write("Color/Group (Optional)")
-            cgroup = st.popover("Choose")
-            cgroupopt1 = cgroup.checkbox("option cgroup 1")
-            cgroupopt2 = cgroup.checkbox("option cgroup 2")
-            cgroupopt3 = cgroup.checkbox("option cgroup 3")
-
-            st.write("Aggregation")
-            aggreg = st.popover("Choose")
-            aggregopt1 = aggreg.checkbox("option aggreg 1")
-            aggregopt2 = aggreg.checkbox("option aggreg 2")
-            aggregopt3 = aggreg.checkbox("option aggreg 3")
-
-            st.space(size=10)
+            st.header("Aggregation")
+            st.selectbox(
+                    "",
+                    ["Sum", "Mean", "Count", "Median"],
+                )
+            
+            st.space(size=20)
 
             st.header("Filters")
+            st.selectbox(
+                    "Numeric Filter",
+                    ["None", "option  1", "option 2", "option 3"],
+                )
 
-            st.write("Numeric Filter")
-            numFilt = st.popover("Choose")
-            numFiltopt1 = numFilt.checkbox("option numFilt 1")
-            numFiltopt2 = numFilt.checkbox("option numFilt 2")
-            numFiltopt3 = numFilt.checkbox("option numFilt 3")
+            st.space(size=20)
 
-            st.write("Categorical filter")
-            catFilt = st.popover("Choose")
-            catFiltopt1 = catFilt.checkbox("option catFilt 1")
-            catFiltopt2 = catFilt.checkbox("option catFilt 2")
-            catFiltopt3 = catFilt.checkbox("option catFilt 3")
+            value_range = st.slider("Value Range", 0, 100, (0, 100))
+
+            st.header("Categorical Filter")
+            st.multiselect(
+                    "",
+                    ["option 1", "option 2", "option  3"],
+                )
 
             st.space(size=20)
 
