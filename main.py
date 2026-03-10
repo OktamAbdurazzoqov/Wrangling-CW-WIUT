@@ -41,6 +41,8 @@ overviewTab, cleaningStudioTab, visualizationTab, exportReportTab =\
               width = 1490,\
               default = "Overview")
 
+########################################################
+
 ##setting overview tab (will need change)
 with overviewTab:
     st.header("Dataset Overview")
@@ -58,6 +60,10 @@ with overviewTab:
 
     ##setting columns inside of the overview tab
     rowsColumn, columnsColumn, numericColumn, categoricalColumn, datetimeColumn = st.columns([2, 2, 2, 2, 2])
+
+    # with rowsColumn:
+    #     st.header(rows)
+    #     st.write("Rows")
 
     with rowsColumn:
         st.header(rows)
@@ -87,6 +93,7 @@ with overviewTab:
 
     st.header("Data Profiling")
 
+<<<<<<< HEAD
     st.space(size=20)
 
     ##setting separate column field to create layout inside of overview section
@@ -155,6 +162,81 @@ with overviewTab:
                     st.success("Duplicate rows removed")
         else:
             st.write("No dataset loaded")
+=======
+    st.space(size=10)
+
+    ##setting separate column field to create layout inside of overview section
+    datatypesColumn, mvDPColumn = st.columns([4, 4])
+   
+    ##trying to get all types of columns, names, etc, we will think about changing it a bit and finishing that, some fields
+    ##are now duplicated but we will fix it (will need change)
+    with datatypesColumn:
+        with st.container(border=True):
+            st.header("Data Types")
+
+            if df is not None:
+                numeric_cols = df.select_dtypes(include="number").columns
+                categorical_cols = df.select_dtypes(include=["object","category"]).columns
+                datetime_cols = df.select_dtypes(include=["datetime","datetimetz"]).columns
+
+                st.write(f"Numeric columns: {len(numeric_cols)}")
+                st.write(f"Categorical columns: {len(categorical_cols)}")
+                st.write(f"Datetime columns: {len(datetime_cols)}")
+
+                st.space(size=10)
+
+                st.subheader("Column Names")
+
+                st.write("Numeric:", ", ".join(numeric_cols) if len(numeric_cols) > 0 else "None")
+                st.write("Categorical:", ", ".join(categorical_cols) if len(categorical_cols) > 0 else "None")
+                st.write("Datetime:", ", ".join(datetime_cols) if len(datetime_cols) > 0 else "None")
+
+            else:
+                st.write("Upload dataset")
+
+
+    ##checking for missing values
+    with mvDPColumn:
+        with st.container(border=True):
+            st.header("Missing Values")
+
+            if df is not None:
+                missing_per_column = df.isnull().sum()
+                total_missing = missing_per_column.sum()
+
+                st.write(f"Total missing values: {total_missing}")
+
+                missing_columns = missing_per_column[missing_per_column > 0]
+
+                if len(missing_columns) == 0:
+                    st.write("No missing values found")
+                else:
+                    for col, count in missing_columns.items():
+                        st.write(f"{col}: {count}")
+            else:
+                st.write("Upload dataset")
+
+        st.space(size=20)
+
+    ##checking for duplicates
+    with mvDPColumn:
+        with st.container(border=True):
+            st.header("Duplicates")
+
+            if df is not None:
+                duplicate_count = df.duplicated().sum()
+
+                st.write(f"Total duplicate rows: {duplicate_count}")
+
+                if duplicate_count > 0:
+                    if st.button("Remove Duplicates"):
+                        df = df.drop_duplicates()
+                        st.success("Duplicate rows removed")
+            else:
+                st.write("Upload dataset")
+
+##################################################################3
+>>>>>>> ed7f0ff (changes made to visualization tab design for better UX)
 
 ##setting overview tab (will need change)
 with cleaningStudioTab:
@@ -223,7 +305,11 @@ with cleaningStudioTab:
         with buttonResetCleaningColumn:
             st.button("Reset All")
 
+<<<<<<< HEAD
 ##setting overview tab (will need change)
+=======
+##Visalization TAb
+>>>>>>> ed7f0ff (changes made to visualization tab design for better UX)
 with visualizationTab:
     st.header("Visualization")
     st.write("Create interactive charts and explore your dataset visually")
@@ -314,10 +400,14 @@ with visualizationTab:
             st.space(size=30)
             st.header("HERE WILL BE VISUALIZED RESULTS")
 
+<<<<<<< HEAD
 ##setting overview tab (will need change)
+=======
+#Export Tab
+>>>>>>> ed7f0ff (changes made to visualization tab design for better UX)
 with exportReportTab:
     st.header("Export & Report")
-    st.write("Export your cleared dataset, transformation logs and reproducible workflow recipes")
+    st.write("Export your cleared dataset, transformation logs and reproducible workflow")
 
     st.space(size=35)
 
