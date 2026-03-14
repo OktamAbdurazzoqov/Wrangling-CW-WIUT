@@ -24,6 +24,9 @@ with st.sidebar:
                 df = pd.read_csv(uploaded_file)
             else:
                 df = pd.read_excel(uploaded_file)
+            
+            for col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="ignore")
         
         st.write("Workflow")
         st.button("Reset Session")
@@ -164,73 +167,6 @@ with overviewTab:
 
     ##setting separate column field to create layout inside of overview section
     datatypesColumn, mvDPColumn = st.columns([4, 4])
-   
-    ##trying to get all types of columns, names, etc, we will think about changing it a bit and finishing that, some fields
-    ##are now duplicated but we will fix it (will need change)
-    with datatypesColumn:
-        with st.container(border=True):
-            st.header("Data Types")
-
-            if df is not None:
-                numeric_cols = df.select_dtypes(include="number").columns
-                categorical_cols = df.select_dtypes(include=["object","category"]).columns
-                datetime_cols = df.select_dtypes(include=["datetime","datetimetz"]).columns
-
-                st.write(f"Numeric columns: {len(numeric_cols)}")
-                st.write(f"Categorical columns: {len(categorical_cols)}")
-                st.write(f"Datetime columns: {len(datetime_cols)}")
-
-                st.space(size=10)
-
-                st.subheader("Column Names")
-
-                st.write("Numeric:", ", ".join(numeric_cols) if len(numeric_cols) > 0 else "None")
-                st.write("Categorical:", ", ".join(categorical_cols) if len(categorical_cols) > 0 else "None")
-                st.write("Datetime:", ", ".join(datetime_cols) if len(datetime_cols) > 0 else "None")
-
-            else:
-                st.write("Upload dataset")
-
-
-    ##checking for missing values
-    with mvDPColumn:
-        with st.container(border=True):
-            st.header("Missing Values")
-
-            if df is not None:
-                missing_per_column = df.isnull().sum()
-                total_missing = missing_per_column.sum()
-
-                st.write(f"Total missing values: {total_missing}")
-
-                missing_columns = missing_per_column[missing_per_column > 0]
-
-                if len(missing_columns) == 0:
-                    st.write("No missing values found")
-                else:
-                    for col, count in missing_columns.items():
-                        st.write(f"{col}: {count}")
-            else:
-                st.write("Upload dataset")
-
-        st.space(size=20)
-
-    ##checking for duplicates
-    with mvDPColumn:
-        with st.container(border=True):
-            st.header("Duplicates")
-
-            if df is not None:
-                duplicate_count = df.duplicated().sum()
-
-                st.write(f"Total duplicate rows: {duplicate_count}")
-
-                if duplicate_count > 0:
-                    if st.button("Remove Duplicates"):
-                        df = df.drop_duplicates()
-                        st.success("Duplicate rows removed")
-            else:
-                st.write("Upload dataset")
 
 ##setting overview tab (will need change)
 with cleaningStudioTab:
@@ -304,91 +240,132 @@ with visualizationTab:
     st.header("Visualization")
     st.write("Create interactive charts and explore your dataset visually")
     
-    chartConfigColumn, chartOutputColumn = st.columns([1,1])
-    
-    ##fixed chart config part, we need better design for our work
-    with chartConfigColumn:
-        containerVisualizationTab = st.container(border=True)
-        with containerVisualizationTab:
-            st.header("Chart Configuration")
+    if df is None:
+        st.warning("Upload dataset first")
+    else:
+        numeric_cols = df.select_dtypes(include = "number").columns.tolist()
+        categorical_cols = df.select_dtypes(include = ["object", "category"]).columns.tolist()
+        ##checking only for columns where values inside are repeated not to get unique values in categories
+        ##so we just multiply the number of rows of dataframe by 50% size of it and checking to have unique values
+        categorical_cols = [
+            col for col in categorical_cols
+            if df[col].nunique() < len(df) * 0.5
+        ]
+        all_cols = df.columns.tolist()
+        chartConfigColumn, chartOutputColumn = st.columns([1,1])
+        
+        ##fixed chart config part, we need better design for our work
+        ##added value handling to use them in charts, cuz i cant draw graphs without that
+        with chartConfigColumn:
+            containerVisualizationTab = st.container(border=True)
+            with containerVisualizationTab:
+                st.header("Chart Configuration")
 
-            st.space(size=20)
-            
-            st.header("Chart Type")
-            st.selectbox(
-                    "",
-                    [
-                        "Histogram",
-                        "Box Plot",
-                        "Scatter Plot",
-                        "Line Chart",
-                        "Grouped Bar Chart",
-                        "Correlation Heatmap",
-                    ],
+                st.space(size=20)
+                
+                st.header("Chart Type")
+                chart_type = st.selectbox(
+                        "",
+                        [
+                            "Histogram",
+                            "Box Plot",
+                            "Scatter Plot",
+                            "Line Chart",
+                            "Grouped Bar Chart",
+                            "Correlation Heatmap",
+                        ],
+                    )
+                
+                st.space(size=20)
+
+                st.header("Axes")
+
+                x_axis = st.selectbox(
+                    "X Axis",
+                    all_cols
                 )
-            
-            st.space(size=20)
+                ##a little check just not to wait for values for Y-axis if they are none
+                if numeric_cols:
+                    y_axis = st.selectbox(
+                        "Y Axis",
+                        ["None"] + numeric_cols
+                    )
+                else:
+                    st.warning("no numeric columns for y_axis")
+                    y_axis = None
+                
+                st.space(size=20)
 
-            st.header("Axes")
-            st.selectbox(
-                    "",
-                    [
-                        "option xaxis 1",
-                        "option xaxis 2",
-                        "option xaxis 3",
-                    ],
-                )
-            
-            st.space(size=20)
+                st.header("Color/Group (Optional)")
+                group_col = st.selectbox(
+                        "Group by",
+                        ["None"] + categorical_cols
+                    )
+                
+                st.space(size=20)
 
-            st.header("Color/Group (Optional)")
-            st.selectbox(
-                    "",
-                    ["None", "option1", "option 2", "option 3"],
-                )
-            
-            st.space(size=20)
+                st.header("Aggregation")
+                aggregation = st.selectbox(
+                        "Aggregation method",
+                        ["None", "Sum", "Mean", "Count", "Median"],
+                    )
+                
+                st.space(size=20)
 
-            st.header("Aggregation")
-            st.selectbox(
-                    "",
-                    ["Sum", "Mean", "Count", "Median"],
-                )
-            
-            st.space(size=20)
+                st.header("Numeric Filter")
+                numeric_filter_col = st.selectbox(
+                        "Column",
+                        ["None"] + numeric_cols
+                    )
+                
+                value_range = None
 
-            st.header("Filters")
-            st.selectbox(
-                    "Numeric Filter",
-                    ["None", "option  1", "option 2", "option 3"],
-                )
+                ##checking whole values because we will work mainly with index columns
+                if numeric_filter_col != "None":
+                    min_val = int(df[numeric_filter_col].min())
+                    max_val = int(df[numeric_filter_col].max())
+                    value_range = st.slider(
+                        "Value Range",
+                        min_val,
+                        max_val,
+                        (min_val, max_val),
+                        step=1
+                    )
 
-            st.space(size=20)
+                st.space(size=20)
 
-            value_range = st.slider("Value Range", 0, 100, (0, 100))
+                st.header("Categorical Filter")
+                cat_filter_col = st.selectbox(
+                        "Column",
+                        ["None"] + categorical_cols
+                    )
+                selected_categories = []
 
-            st.header("Categorical Filter")
-            st.multiselect(
-                    "",
-                    ["option 1", "option 2", "option  3"],
-                )
+                ##dropping all useless valeus and also getting selected categories
+                if cat_filter_col != "None":
+                    unique_vals = df[cat_filter_col].dropna().unique().tolist()
+                    selected_categories = st.multiselect(
+                        "Selected categories",
+                        unique_vals
+                    )
 
-            st.space(size=20)
+                st.space(size=20)
 
-            genChart, resetFilt = st.columns([2,2])
-            with genChart:
-                st.button("Generate Chart")
+                genChart, resetFilt = st.columns([2,2])
 
-            with resetFilt:
-                st.button("Reset Filters")
+                with genChart:
+                    generate_chart_btn = st.button("Generate Chart")
 
-    with chartOutputColumn:
-        containerOutputVTab = st.container(border=True)
-        with containerOutputVTab:
-            st.header("Visualization Output")
-            
-            st.space(size=30)
-            st.header("HERE WILL BE VISUALIZED RESULTS")
+                with resetFilt:
+                    reset_filters_btn = st.button("Reset Filters")
+
+        with chartOutputColumn:
+            containerOutputVTab = st.container(border=True)
+            with containerOutputVTab:
+                st.header("Visualization Output")
+                
+                st.space(size=30)
+                st.header("HERE WILL BE VISUALIZED RESULTS")
 
 #Export Tab
 with exportReportTab:
