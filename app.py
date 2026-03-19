@@ -334,108 +334,156 @@ with cleaningStudioTab:
 
                 st.success(f"Removed {rows_removed} duplicate rows")
 
-        with st.expander("Data type conversion"):
-            st.header("Data type conversion")
+        with st.expander("Categorical cleaning"):
+            st.header("Categorical cleaning")
 
             selected_cols = st.multiselect(
-                "Select columns",
+                "Select categorical columns",
                 df.columns.tolist()
             )
 
             if not selected_cols:
                 st.warning("Select at least one column")
             else:
-                conversion_type = st.selectbox(
-                    "Conversion type",
-                    [
-                        "To numeric",
-                        "To categorical",
-                        "To datetime"
-                    ]
+
+                st.subheader("Basic cleaning")
+
+                trim_whitespace = st.checkbox("Trim whitespace")
+                to_lower = st.checkbox("Convert to lowercase")
+                to_title = st.checkbox("Convert to title case")
+
+                invalid_case = to_lower and to_title
+                if invalid_case:
+                    st.error("Choose either lowercase OR title case")
+
+                st.subheader("Value mapping")
+
+                enable_mapping = st.checkbox("Enable mapping")
+
+                mapping_df = None
+                set_unmatched_other = False
+                other_value = "Other"
+
+                if enable_mapping:
+                    unique_values = pd.Series(dtype="object")
+
+                    for col in selected_cols:
+                        unique_values = pd.concat([
+                            unique_values,
+                            df[col].dropna().astype(str)
+                        ])
+
+                    unique_values = pd.Series(unique_values.unique()).sort_values()
+
+                    mapping_df = pd.DataFrame({
+                        "old_value": unique_values,
+                        "new_value": unique_values
+                    })
+
+                    mapping_df = st.data_editor(mapping_df, num_rows="dynamic")
+
+                    if mapping_df["old_value"].duplicated().any():
+                        st.error("Duplicate 'old_value' detected in mapping")
+                        st.stop()
+
+                    if mapping_df["new_value"].isna().any():
+                        st.warning("Some new values are empty")
+
+                    set_unmatched_other = st.checkbox("Set unmatched values to 'Other'")
+                    if set_unmatched_other:
+                        other_value = st.text_input("Other value", value="Other")
+
+            st.subheader("Rare category grouping")
+
+            enable_rare = st.checkbox("Enable rare category grouping")
+
+            rare_threshold = 0.05
+            rare_label = "Other"
+
+            if enable_rare:
+                rare_threshold = st.slider(
+                    "Threshold (%)",
+                    0.0, 1.0, 0.05, 0.01
                 )
+                rare_label = st.text_input("Rare category label", value="Other")
 
-                datetime_format = None
-                clean_numeric = False
+            st.subheader("Encoding")
+            one_hot = st.checkbox("Apply one-hot encoding")
 
-                if conversion_type == "To datetime":
-                    datetime_format = st.text_input(
-                        "Datetime format (optional, e.g. %Y-%m-%d)"
-                    )
+            if st.button("Apply", key="cat_clean_apply"):
 
-                if conversion_type == "To numeric":
-                    clean_numeric = st.checkbox(
-                        "Clean numeric strings (remove commas, currency symbols)"
-                    )
-
-                def clean_numeric_series(series: pd.Series) -> pd.Series:
-                    return (
-                        series.astype(str)
-                        .str.replace(r"[,\$\€\£]", "", regex=True)
-                        .str.replace(r"\s+", "", regex=True)
-                    )
-
-                def convert_numeric(series: pd.Series) -> pd.Series:
-                    if clean_numeric:
-                        series = clean_numeric_series(series)
-                    return pd.to_numeric(series, errors="coerce")
-
-                def convert_datetime(series: pd.Series) -> pd.Series:
-                    return pd.to_datetime(
-                        series,
-                        format=datetime_format if datetime_format else None,
-                        errors="coerce"
-                    )
-
-                def convert_categorical(series: pd.Series) -> pd.Series:
-                    return series.astype("category")
-
-                conversion_map = {
-                    "To numeric": convert_numeric,
-                    "To datetime": convert_datetime,
-                    "To categorical": convert_categorical,
-                }
-
-                if st.button("Apply", key="dtype_apply"):
+                if invalid_case:
+                    st.warning("Fix errors before applying")
+                else:
 
                     new_df = df.copy()
 
                     total_rows_affected = 0
-                    total_errors = 0
-                    processed_columns = 0
+                    total_columns_affected = 0
+
+                    mapping_dict = None
+                    if enable_mapping and mapping_df is not None:
+                        mapping_dict = dict(
+                            zip(mapping_df["old_value"], mapping_df["new_value"])
+                        )
 
                     for col in selected_cols:
-                        series = new_df[col]
-
                         try:
-                            before_na = series.isna().sum()
-                            before_non_na = series.notna().sum()
+                            series = new_df[col]
+                            original = series.copy()
 
-                            convert_fn = conversion_map[conversion_type]
-                            converted = convert_fn(series)
+                            mask = series.notna()
+                            working = series[mask].astype(str)
 
-                            after_na = converted.isna().sum()
+                            if trim_whitespace:
+                                working = working.str.strip()
 
-                            conversion_errors = max(after_na - before_na, 0)
+                            if to_lower:
+                                working = working.str.lower()
 
-                            changes_mask = ~(series == converted) & ~(series.isna() & converted.isna())
-                            rows_changed = changes_mask.sum()
+                            if to_title:
+                                working = working.str.title()
 
-                            new_df[col] = converted
+                            if mapping_dict is not None:
+                                mapped = working.map(mapping_dict)
 
-                            total_rows_affected += rows_changed
-                            total_errors += conversion_errors
-                            processed_columns += 1
+                                if set_unmatched_other:
+                                    working = mapped.fillna(other_value)
+                                else:
+                                    working = mapped.where(mapped.notna(), working)
+
+                            if enable_rare:
+                                freq = working.value_counts(normalize=True)
+                                rare_values = freq[freq < rare_threshold].index
+
+                                if len(rare_values) > 0:
+                                    working = working.where(
+                                        ~working.isin(rare_values),
+                                        rare_label
+                                    )
+
+                            series.loc[mask] = working
+                            new_df[col] = series
+
+                            changes = ~(original.eq(new_df[col]) | (original.isna() & new_df[col].isna()))
+                            rows_changed = changes.sum()
+
+                            if rows_changed > 0:
+                                total_rows_affected += rows_changed
+                                total_columns_affected += 1
 
                         except Exception as e:
-                            total_errors += 1
                             st.warning(f"Error processing column '{col}': {e}")
 
-                    st.success(f"Columns processed: {processed_columns}")
-                    st.info(f"Rows actually changed: {total_rows_affected}")
-                    st.warning(f"Values coerced to NaN (conversion errors): {total_errors}")
+                if one_hot:
+                    try:
+                        new_df = pd.get_dummies(new_df, columns=selected_cols)
+                        total_columns_affected += len(selected_cols)
+                    except Exception as e:
+                        st.warning(f"One-hot encoding failed: {e}")
 
-        with st.expander("Categorical cleaning"):
-            st.header("Categorical cleaning")
+                st.success(f"Columns affected: {total_columns_affected}")
+                st.info(f"Rows affected: {total_rows_affected}")
 
         with st.expander("Outlier handling"):
             st.header("Outlier handling")
