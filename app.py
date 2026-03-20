@@ -788,30 +788,248 @@ with cleaningStudioTab:
         with st.expander("Column operations"):
             st.header("Column operations")
 
+            operation = st.selectbox(
+                "Select operation",
+                [
+                    "Rename columns",
+                    "Drop columns",
+                    "Create column (formula)",
+                    "Binning (equal width)",
+                    "Binning (quantile)"
+                ],
+                key="colops_operation",
+            )
+
+            new_df = None
+
+            if operation == "Rename columns":
+
+                rename_df = pd.DataFrame({
+                    "old_name": df.columns,
+                    "new_name": df.columns
+                })
+
+                rename_df = st.data_editor(rename_df, num_rows="dynamic")
+
+                if st.button("Apply", key="rename_apply"):
+                    try:
+                        mapping = dict(zip(rename_df["old_name"], rename_df["new_name"]))
+
+                        if len(set(mapping.values())) != len(mapping.values()):
+                            st.error("New column names must be unique")
+                        else:
+                            new_df = df.rename(columns=mapping)
+                            st.success("Columns renamed")
+
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+
+            elif operation == "Drop columns":
+
+                drop_cols = st.multiselect(
+                    "Columns",
+                    df.columns.tolist(),
+                    key="colops_drop_cols"
+                )
+
+                if st.button("Apply", key="drop_cols_apply"):
+                    if not drop_cols:
+                        st.warning("Select at least one column")
+                    else:
+                        try:
+                            new_df = df.drop(columns=drop_cols)
+                            st.success(f"Dropped {len(drop_cols)} columns")
+                        except Exception as e:
+                            st.error(str(e))
+
+            elif operation == "Create column (formula)":
+
+                new_col = st.text_input("New column name")
+                formula = st.text_input("Formula (e.g. col1 + col2 * 2)")
+
+                st.caption("Only basic math operations supported")
+
+                if st.button("Apply", key="formula_apply"):
+                    if not new_col or not formula:
+                        st.warning("Provide column name and formula")
+                    elif new_col in df.columns:
+                        st.warning("Column already exists")
+                    else:
+                        try:
+                            new_df = df.copy()
+
+                            safe_dict = {col: new_df[col] for col in new_df.columns}
+
+                            result = eval(formula, {"__builtins__": {}}, safe_dict)
+
+                            if len(result) != len(df):
+                                st.error("Formula must return column-sized result")
+                            else:
+                                new_df[new_col] = result
+                                st.success(f"Column '{new_col}' created")
+
+                        except Exception as e:
+                            st.error(f"Invalid formula: {e}")
+
+            elif operation == "Binning (equal width)":
+
+                col = st.selectbox(
+                    "Column",
+                    df.columns,
+                    key="colops_bin_col"
+                )
+                bins = st.number_input("Bins", 2, 100, 5)
+                new_col = st.text_input("New column name")
+
+                if st.button("Apply", key="bin_eq_apply"):
+                    if not new_col:
+                        st.warning("Provide column name")
+                    else:
+                        try:
+                            new_df = df.copy()
+                            new_df[new_col] = pd.cut(new_df[col], bins=bins)
+                            st.success("Equal-width binning applied")
+                        except Exception as e:
+                            st.error(str(e))
+
+            elif operation == "Binning (quantile)":
+
+                col = st.selectbox("Column", df.columns, key="qbin_col")
+                bins = st.number_input("Bins", 2, 100, 5, key="qbin_bins")
+                new_col = st.text_input("New column name", key="qbin_name")
+
+                if st.button("Apply", key="bin_q_apply"):
+                    if not new_col:
+                        st.warning("Provide column name")
+                    else:
+                        try:
+                            new_df = df.copy()
+                            new_df[new_col] = pd.qcut(new_df[col], q=bins, duplicates="drop")
+                            st.success("Quantile binning applied")
+                        except Exception as e:
+                            st.error(str(e))
+
+            if new_df is not None:
+                st.subheader("Preview (first 20 rows)")
+                st.dataframe(new_df.head(20))
+
         with st.expander("Data validation"):
             st.header("Data validation")
 
-    with metricsColumn:
-        st.header("Transformation preview")
-        st.write("Rows")
-        st.write("Columns")
-        st.write("Rows affected")
-        st.write("Columns affected")
+            validation_type = st.selectbox(
+                "Validation type",
+                [
+                    "Numeric range",
+                    "Allowed categories",
+                    "Non-null constraint"
+                ],
+                key="validation_type",
+            )
 
-    with metricsColumn:
-        st.header("Transformation preview")
-        st.write("Information loading...")
-        st.write("Information loading...")
-        st.write("Information loading...")
-        st.write("Information loading...")
+            violations_df = None
 
-        ##setting up button columns (will need change)
-        buttonUndoCleaningColumn, buttonResetCleaningColumn = st.columns([2, 2])
-        with buttonUndoCleaningColumn:
-            st.button("Undo Last Step")
+            def show_result(vdf):
+                st.write(f"Violations: {len(vdf)}")
 
-        with buttonResetCleaningColumn:
-            st.button("Reset All")
+                if not vdf.empty:
+                    st.dataframe(vdf.head(50))
+
+                    try:
+                        csv = vdf.to_csv(index=False).encode("utf-8")
+                        st.download_button(
+                            "Download violations",
+                            data=csv,
+                            file_name="violations.csv",
+                            mime="text/csv"
+                        )
+                    except Exception as e:
+                        st.error(f"Export failed: {e}")
+
+            if validation_type == "Numeric range":
+
+                col = st.selectbox(
+                    "Column",
+                    df.columns,
+                    key="validation_col_range"
+                )
+
+                min_val = st.number_input("Min")
+                max_val = st.number_input("Max")
+
+                if st.button("Validate", key="range_validate"):
+                    try:
+                        series = df[col]
+
+                        if not pd.api.types.is_numeric_dtype(series):
+                            st.error("Selected column is not numeric")
+                        else:
+                            mask = (series < min_val) | (series > max_val)
+                            violations_df = df[mask]
+                            show_result(violations_df)
+
+                    except Exception as e:
+                        st.error(str(e))
+
+            elif validation_type == "Allowed categories":
+
+                col = st.selectbox("Column", df.columns, key="cat_val_col")
+                allowed = st.text_input("Allowed values (comma separated)")
+
+                if st.button("Validate", key="cat_validate"):
+                    try:
+                        allowed_list = [x.strip() for x in allowed.split(",") if x.strip()]
+
+                        if not allowed_list:
+                            st.warning("Provide allowed values")
+                        else:
+                            mask = ~df[col].astype(str).isin(allowed_list)
+                            violations_df = df[mask]
+                            show_result(violations_df)
+
+                    except Exception as e:
+                        st.error(str(e))
+
+            elif validation_type == "Non-null constraint":
+
+                cols = st.multiselect(
+                    "Columns",
+                    df.columns.tolist(),
+                    key="validation_nonnull_cols"
+                )
+
+                if st.button("Validate", key="nonnull_validate"):
+                    try:
+                        if not cols:
+                            st.warning("Select columns")
+                        else:
+                            mask = df[cols].isna().any(axis=1)
+                            violations_df = df[mask]
+                            show_result(violations_df)
+
+                    except Exception as e:
+                        st.error(str(e))
+
+            with metricsColumn:
+                st.header("Transformation preview")
+                st.write("Rows")
+                st.write("Columns")
+                st.write("Rows affected")
+                st.write("Columns affected")
+
+            with metricsColumn:
+                st.header("Transformation preview")
+                st.write("Information loading...")
+                st.write("Information loading...")
+                st.write("Information loading...")
+                st.write("Information loading...")
+
+                ##setting up button columns (will need change)
+                buttonUndoCleaningColumn, buttonResetCleaningColumn = st.columns([2, 2])
+                with buttonUndoCleaningColumn:
+                    st.button("Undo Last Step")
+
+                with buttonResetCleaningColumn:
+                    st.button("Reset All")
 
 ##Visalization TAb
 with visualizationTab:
